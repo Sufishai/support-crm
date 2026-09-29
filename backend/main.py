@@ -2,22 +2,23 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import or_  # type: ignore[reportMissingImports]
 from typing import Any
-import requests
-import models
-import schemas
+from backend import models
+from backend import schemas
+from backend import database as database_
 
-from database import engine, get_db, Base
+from backend.database import engine, get_db, Base
 
 # AI SETUP
 
 import os
 import json
 import time
+import requests
 
 from dotenv import load_dotenv
 from google import genai
 
-load_dotenv()
+load_dotenv("backend/.env")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -28,7 +29,7 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 # DATABASE
-Base.metadata.create_all(bind=engine)
+database_.Base.metadata.create_all(bind=database_.engine)
 
 # webhook URL
 WEBHOOK_URL = "http://127.0.0.1:8000/api/webhooks/ticket"
@@ -68,7 +69,7 @@ def root():
 @app.post("/api/webhooks/ticket")
 def ticket_webhook(
     payload: schemas.TicketWebhook,
-    db: Any = Depends(get_db)
+    db: Any = Depends(database_.get_db)
 ):
 
     data = payload.model_dump()
@@ -95,7 +96,7 @@ def ticket_webhook(
 @app.post("/api/tickets", response_model=dict)
 def create_ticket(
     ticket: schemas.TicketCreate,
-    db: Any = Depends(get_db)
+    db: Any = Depends(database_.get_db)
 ):
 
     ticket_count = db.query(models.Ticket).count()
@@ -150,7 +151,7 @@ def create_ticket(
 def get_tickets(
     status: str | None = Query(default=None),
     search: str | None = Query(default=None),
-    db: Any = Depends(get_db)
+    db: Any = Depends(database_.get_db)
 ):
     query = db.query(models.Ticket)
 
@@ -194,7 +195,7 @@ def get_tickets(
 @app.get("/api/tickets/{ticket_id}")
 def get_ticket(
     ticket_id: str,
-    db: Any = Depends(get_db)
+    db: Any = Depends(database_.get_db)
 ):
     ticket = db.query(models.Ticket).filter(
         models.Ticket.ticket_id == ticket_id
@@ -231,7 +232,7 @@ def get_ticket(
 def update_ticket(
     ticket_id: str,
     update_data: schemas.TicketUpdate,
-    db: Any = Depends(get_db)
+    db: Any = Depends(database_.get_db)
 ):
     ticket = db.query(models.Ticket).filter(
         models.Ticket.ticket_id == ticket_id
@@ -282,7 +283,7 @@ def update_ticket(
 @app.post("/api/tickets/{ticket_id}/analyze")
 def analyze_ticket(
     ticket_id: str,
-    db: Any = Depends(get_db)
+    db: Any = Depends(database_.get_db)
 ):
     # Find ticket
     ticket = db.query(models.Ticket).filter(
@@ -372,7 +373,7 @@ Return only valid JSON.
 @app.post("/api/tickets/{ticket_id}/reply")
 def generate_ai_reply(
     ticket_id: str,
-    db: Any = Depends(get_db)
+    db: Any = Depends(database_.get_db)
 ):
     # Find ticket
     ticket = db.query(models.Ticket).filter(
@@ -453,7 +454,7 @@ Requirements:
 # webhook endpoint for ticket updates
 @app.get("/api/automation-logs")
 def get_automation_logs(
-    db: Any = Depends(get_db)
+    db: Any = Depends(database_.get_db)
 ):
     logs = (
         db.query(models.AutomationLog)
